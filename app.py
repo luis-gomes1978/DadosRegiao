@@ -50,7 +50,9 @@ if st.session_state.get("authentication_status") or DEV_MODE:
     def _calculate_age(df: pd.DataFrame) -> pd.DataFrame:
         """Calcula a idade dos colaboradores com base na data de nascimento."""
         df['DT_NASCIMENTO'] = pd.to_datetime(df['DT_NASCIMENTO'], format='%d/%m/%Y', errors='coerce')
-        df['IDADE'] = ((datetime.now() - df['DT_NASCIMENTO']).dt.days / 365.25).astype('Int64')
+        # Cálculo robusto da idade, arredondando para baixo para garantir a conversão segura para inteiro.
+        age_in_years = (datetime.now() - df['DT_NASCIMENTO']).dt.days / 365.25
+        df['IDADE'] = np.floor(age_in_years).astype('Int64')
         return df
 
     def _map_brazilian_regions(df: pd.DataFrame) -> pd.DataFrame:
