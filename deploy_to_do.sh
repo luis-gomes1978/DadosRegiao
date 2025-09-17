@@ -9,6 +9,7 @@ REGION="nyc3"
 K8S_VERSION="1.33.1-do.3" # Versão recomendada (verificada via doctl kubernetes options versions)
 NODE_SIZE="s-1vcpu-2gb"   # Menor tamanho disponível (verificado via doctl compute size list)
 NODE_COUNT=1              # Número de nós para o pool inicial
+LETSENCRYPT_EMAIL="seu-email@exemplo.com" # <-- IMPORTANTE: Troque pelo seu e-mail
 
 # 1. Verificar autenticação (doctl e docker)
 echo "1. Verificando autenticação do doctl e docker..."
@@ -16,55 +17,111 @@ doctl account get > /dev/null || { echo "Erro: doctl não autenticado. Execute '
 docker info > /dev/null || { echo "Erro: Docker não está rodando ou não autenticado. Verifique o Docker Desktop."; exit 1; }
 docker login > /dev/null || { echo "Erro: Docker Hub não autenticado. Execute 'docker login'."; exit 1; }
 
-# 2. Criar Cluster Kubernetes no DigitalOcean (MANUALMENTE VIA PAINEL DO)
-echo "2. Por favor, crie o cluster Kubernetes '$CLUSTER_NAME' manualmente no painel do DigitalOcean."
-echo "   - Região: '$REGION'"
-echo "   - Versão K8s: '$K8S_VERSION'"
-echo "   - Node Pool: '$NODE_SIZE' com '$NODE_COUNT' nó(s)."
-echo "Aguarde até que o cluster esteja '(running)' no painel."
-read -p "Pressione Enter para continuar quando o cluster estiver pronto e copie o ID do cluster: " 
-
-CLUSTER_ID=$(doctl kubernetes cluster list --output json | jq -r ".[] | select(.name==\"$CLUSTER_NAME\") | .id")
-
-if [ -z "$CLUSTER_ID" ]; then
-    echo "Erro: Não foi possível obter o ID do cluster '$CLUSTER_NAME'. Verifique se o nome está correto e se o cluster foi criado."
-    exit 1
+# 2. Verificar/Criar o Cluster Kubernetes
+echo "2. Verificando a existência do cluster '$CLUSTER_NAME'..."
+if ! doctl kubernetes cluster get "$CLUSTER_NAME" > /dev/null 2>&1; then
+    echo "   Cluster não encontrado. Criando um novo cluster (isso pode levar alguns minutos)..."
+    doctl kubernetes cluster create "$CLUSTER_NAME" \
+        --region "$REGION" \
+        --version "$K8S_VERSION" \
+        --node-pool "name=default-pool;size=$NODE_SIZE;count=$NODE_COUNT" \
+        --wait
+    echo "   Cluster '$CLUSTER_NAME' criado com sucesso."
+else
+    echo "   Cluster '$CLUSTER_NAME' já existe. Reutilizando."
 fi
-echo "Cluster '$CLUSTER_NAME' encontrado com ID: $CLUSTER_ID"
 
 # 3. Configurar kubectl para acessar o novo cluster
 echo "3. Configurando kubectl para o cluster..."
-doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+doctl kubernetes cluster kubeconfig save "$CLUSTER_NAME"
+
+# 3.1. Instalar NGINX Ingress Controller (se necessário)
+echo "3.1. Verificando/Instalando o NGINX Ingress Controller..."
+if ! kubectl get namespace ingress-nginx > /dev/null 2>&1; then
+    echo "   Instalando NGINX Ingress Controller (isso criará um Load Balancer)..."
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/do/deploy.yaml
+    echo "   Aguardando o Ingress Controller ficar pronto..."
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=5m
+else
+    echo "   NGINX Ingress Controller já instalado."
+fi
+
+# 3.1.1. Garantir que o PROXY protocol esteja desativado para evitar erros de 'broken header'
+echo "3.1.1. Verificando e ajustando a configuração do NGINX Ingress..."
+if kubectl get configmap -n ingress-nginx ingress-nginx-controller -o jsonpath='{.data.use-proxy-protocol}' | grep -q "true"; then
+    kubectl patch configmap -n ingress-nginx ingress-nginx-controller --type merge -p '{"data":{"use-proxy-protocol":"false"}}'
+    echo "      PROXY protocol desativado. Reiniciando o controller para aplicar a mudança..."
+    kubectl delete pod -n ingress-nginx -l app.kubernetes.io/component=controller
+fi
+
+# 3.2. Instalar Cert-Manager (se necessário)
+echo "3.2. Verificando/Instalando o Cert-Manager..."
+if ! kubectl get namespace cert-manager > /dev/null 2>&1; then
+    echo "   Instalando Cert-Manager..."
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.1/cert-manager.yaml
+    echo "   Aguardando o Cert-Manager ficar pronto..."
+    kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=5m
+else
+    echo "   Cert-Manager já instalado."
+fi
+
+# Gerar uma tag única para a imagem usando o timestamp atual para garantir a atualização
+IMAGE_TAG=$(date +%s)
+IMAGE_NAME="luisgomes1978/dadosregiao:$IMAGE_TAG"
 
 # 4. Construir a imagem Docker para AMD64
 echo "4. Construindo imagem Docker para deploy (linux/amd64)..."
-docker build --platform linux/amd64 -t luisgomes1978/dadosregiao:v1 .
+docker build --no-cache --platform linux/amd64 -t luisgomes1978/dadosregiao:v1 .
+echo "4. Construindo imagem Docker com a tag única: $IMAGE_NAME"
+docker build --no-cache --platform linux/amd64 -t "$IMAGE_NAME" .
 
 # 5. Enviar a imagem para o Docker Hub
 echo "5. Enviando imagem para o Docker Hub..."
 docker push luisgomes1978/dadosregiao:v1
+docker push "$IMAGE_NAME"
+
+# 5.5. Criar o Secret do Kubernetes a partir do config.yaml
+echo "5.5. Criando/Atualizando o Secret do Kubernetes para o config.yaml..."
+# Deleta o secret se ele já existir, para garantir que está sempre atualizado
+kubectl delete secret dadosregiao-config --ignore-not-found=true
+kubectl create secret generic dadosregiao-config --from-file=config.yaml=./config.yaml
 
 # 6. Aplicar manifestos Kubernetes
-echo "6. Aplicando manifestos deployment.yaml e service.yaml no cluster..."
-kubectl apply -f deployment.yaml -f service.yaml
+echo "6. Aplicando manifestos no cluster..."
+kubectl apply -f deployment.yaml -f service.yaml -f ingress.yaml
 
-# 7. Obter IP externo do Load Balancer
-echo "7. Aguardando e obtendo IP externo do Load Balancer..."
-ATTEMPTS=0
-MAX_ATTEMPTS=30 # Tentar por 5 minutos (30 * 10 segundos)
-IP=""
-while [ -z "$IP" ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-    sleep 10
-    IP=$(kubectl get services conversao-distancia-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-    ATTEMPTS=$((ATTEMPTS+1))
-    echo "Aguardando IP... Tentativa $ATTEMPTS de $MAX_ATTEMPTS"
+# Substitui o placeholder da imagem no deployment.yaml e aplica
+# Isso garante que o Kubernetes use a nova imagem com a tag única
+sed "s|image: luisgomes1978/dadosregiao:v1|image: $IMAGE_NAME|g" deployment.yaml | kubectl apply -f -
+
+kubectl apply -f service.yaml -f ingress.yaml
+# Substitui o e-mail no ClusterIssuer e aplica sem modificar o arquivo original
+sed "s/seu-email@exemplo.com/$LETSENCRYPT_EMAIL/g" cluster-issuer.yaml | kubectl apply -f -
+
+echo "7. Configurações de Ingress e Certificado aplicadas."
+echo "   Aguarde alguns minutos para que o certificado seja emitido pelo Let's Encrypt."
+echo "   Você pode verificar o status com: kubectl describe certificate dadosregiao-tls-secret"
+
+# 8. Obter e exibir o IP do Load Balancer do Ingress
+echo "8. Obtendo o IP do Load Balancer do Ingress Controller..."
+INGRESS_IP=""
+while [ -z "$INGRESS_IP" ]; do
+    echo "   Aguardando o IP externo do Load Balancer do NGINX..."
+    # O serviço do ingress-nginx pode demorar um pouco para obter um IP externo
+    INGRESS_IP=$(kubectl get service -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+    [ -z "$INGRESS_IP" ] && sleep 10
 done
 
-if [ -z "$IP" ]; then
-    echo "Erro: Não foi possível obter o IP externo do Load Balancer após várias tentativas."
-    echo "Verifique o status do serviço com 'kubectl get services dadosregiao-service'."
-    exit 1
-fi
-
 echo "--- Deploy Concluído! ---"
-echo "Sua aplicação está acessível em: http://$IP"
+echo ""
+echo "################################################################################"
+echo "### AÇÃO MANUAL NECESSÁRIA ###"
+echo ""
+echo "   O IP do seu Load Balancer é: $INGRESS_IP"
+echo ""
+echo "   Vá ao seu provedor de DNS e garanta que o registro 'A' para"
+echo "   'regiao.slggti.com.br' aponte para este IP."
+echo ""
+echo "################################################################################"
+echo ""
+echo "Após a emissão do certificado, sua aplicação estará acessível em: https://regiao.slggti.com.br"

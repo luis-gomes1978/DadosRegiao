@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dadosregiao-ingress
+  annotations:
+    # IMPORTANTE: Comece com 'letsencrypt-staging' para testar.
+    # Anotações para habilitar o suporte a WebSockets, essencial para o Streamlit
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Depois de confirmar que o HTTPS funciona, mude para 'letsencrypt-prod' e rode o deploy novamente.
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - regiao.slggti.com.br
+    secretName: dadosregiao-tls-secret # cert-manager criará este secret com o certificado
+  rules:
+  - host: regiao.slggti.com.br
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dadosregiao-service
+            port:
+              number: 8501

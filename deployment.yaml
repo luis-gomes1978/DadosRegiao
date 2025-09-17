@@ -16,4 +16,26 @@ spec:
       - name: dadosregiao-container
         image: luisgomes1978/dadosregiao:v1 # <-- USE A TAG CORRETA
         ports:
-        - containerPort: 8000 # A porta que o Gunicorn usa dentro do contêiner
+        - containerPort: 8501 # A porta que o Streamlit usa dentro do contêiner
+        imagePullPolicy: Always # Garante que a imagem mais recente seja sempre baixada
+        # Verificações de saúde para que o Kubernetes gerencie o pod de forma inteligente
+        readinessProbe:
+          httpGet:
+            path: /healthz # Endpoint de saúde padrão do Streamlit
+            port: 8501
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8501
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml # Onde o arquivo será montado dentro do contêiner
+          subPath: config.yaml      # O nome do arquivo dentro do Secret a ser montado
+      volumes:
+      - name: config-volume
+        secret:
+          secretName: dadosregiao-config # O nome do Secret que criamos no script
