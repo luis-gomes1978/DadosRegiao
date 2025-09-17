@@ -70,14 +70,11 @@ IMAGE_TAG=$(date +%s)
 IMAGE_NAME="luisgomes1978/dadosregiao:$IMAGE_TAG"
 
 # 4. Construir a imagem Docker para AMD64
-echo "4. Construindo imagem Docker para deploy (linux/amd64)..."
-docker build --no-cache --platform linux/amd64 -t luisgomes1978/dadosregiao:v1 .
 echo "4. Construindo imagem Docker com a tag única: $IMAGE_NAME"
 docker build --no-cache --platform linux/amd64 -t "$IMAGE_NAME" .
 
 # 5. Enviar a imagem para o Docker Hub
 echo "5. Enviando imagem para o Docker Hub..."
-docker push luisgomes1978/dadosregiao:v1
 docker push "$IMAGE_NAME"
 
 # 5.5. Criar o Secret do Kubernetes a partir do config.yaml
@@ -88,7 +85,6 @@ kubectl create secret generic dadosregiao-config --from-file=config.yaml=./confi
 
 # 6. Aplicar manifestos Kubernetes
 echo "6. Aplicando manifestos no cluster..."
-kubectl apply -f deployment.yaml -f service.yaml -f ingress.yaml
 
 # Substitui o placeholder da imagem no deployment.yaml e aplica
 # Isso garante que o Kubernetes use a nova imagem com a tag única
