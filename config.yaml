@@ -1,0 +1,13 @@
+credentials:
+  usernames:
+    luis:
+      email: luis@example.com
+      name: Luis
+      password: '$2b$12$FexE/tAjrVHs1gJcD2MRHeSHCkZVPJwKz4QmTjt72KXModHTqasFa'
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+preauthorized:
+  emails:
+  - luis@example.com
