@@ -63,31 +63,66 @@ if st.session_state["authentication_status"]:
         df['longitude'] += np.random.normal(0, 0.01, size=len(df))
 
         # Agrupar bairros do Rio de Janeiro por região
+        # Refatorado para melhor legibilidade e manutenção
+        BAIRROS_RIO = {
+            'Rio_Zona Sul': {
+                'BOTAFOGO', 'CATETE', 'COPACABANA', 'COSME VELHO', 'FLAMENGO', 'GÁVEA', 'GLÓRIA', 'HUMAITÁ', 'IPANEMA',
+                'JARDIM BOTÂNICO', 'LAGOA', 'LARANJEIRAS', 'LEBLON', 'LEME', 'SÃO CONRADO', 'URCA', 'VIDIGAL'
+            },
+            'Rio_Centro': {
+                'BONSUCESSO', 'BANCÁRIOS', 'CACUIA', 'CIDADE UNIVERSITÁRIA', 'COCOTÁ', 'FREGUESIA (ILHA)',
+                'JARDIM CARIOCA', 'JARDIM GUANABARA', 'MONERÓ', 'PITANGUEIRAS', 'PRAIA DA BANDEIRA', 'RIBEIRA',
+                'ZUMBI', 'CAJU', 'CATUMBI', 'CENTRO', 'CIDADE NOVA', 'ESTÁCIO', 'GAMBOA', 'LAPA', 'MANGUEIRA',
+                'PAQUETÁ', 'RIO COMPRIDO', 'SANTA TERESA', 'SANTO CRISTO', 'SAÚDE', 'VASCO DA GAMA', 'GAMBOA/SAUDE',
+                'GLORIA'
+            },
+            'Rio_Zona Norte': {
+                'ABOLIÇÃO', 'ÁGUA SANTA', 'ACÁRI', 'ALDEIA CAMPISTA', 'ALTO DA BOA VISTA', 'ANCHIETA', 'ANDARAÍ',
+                'BANGU', 'BARROS FILHO', 'BENTO RIBEIRO', 'BRÁS DE PINA', 'CACHAMBI', 'CAMPO DOS AFONSOS', 'CAMPINHO',
+                'CASCADURA', 'CAVALCANTI', 'COELHO NETO', 'COLÉGIO', 'COMPLEXO DO ALEMÃO', 'CORDOVIL', 'COSTA BARROS',
+                'DEL CASTILHO', 'DEODORO', 'ENCANTADO', 'ENGENHO DA RAINHA', 'ENGENHO DE DENTRO', 'ENGENHO NOVO',
+                'GRAJAÚ', 'GUADALUPE', 'HIGIENÓPOLIS', 'HONÓRIO GURGEL', 'INHAÚMA', 'IRAJÁ', 'JACARÉ', 'JACAREZINHO',
+                'JARDIM AMÉRICA', 'LINS DE VASCONCELOS', 'MADUREIRA', 'MAGALHÃES BASTOS', 'MARACANÃ', 'MARECHAL HERMES',
+                'MARIA DA GRAÇA', 'MÉIER', 'OLARIA', 'OSWALDO CRUZ', 'PARADA DE LUCAS', 'PARQUE ANCHIETA',
+                'PARQUE COLÚMBIA', 'PAVUNA', 'PACIÊNCIA', 'PADRE MIGUEL', 'PENHA', 'PENHA CIRCULAR', 'PIEDADE',
+                'PILARES', 'PRAÇA DA BANDEIRA', 'PRAÇA SECA', 'QUINTINO BOCAIUVA', 'RAMOS', 'REALENGO', 'RIACHUELO',
+                'RICARDO DE ALBUQUERQUE', 'ROCHA', 'ROCHA MIRANDA', 'SAMPAIO', 'SÃO FRANCISCO XAVIER', 'SENADOR CAMARÁ',
+                'SENADOR VASCONCELOS', 'SANTÍSSIMO', 'TODOS OS SANTOS', 'TOMÁS COELHO', 'TURIAÇU', 'VILA DA PENHA',
+                'VILA ISABEL', 'VILA KOSMOS', 'VILA MILITAR', 'VILA VALQUEIRE', 'VICENTE DE CARVALHO', 'VIGÁRIO GERAL',
+                'VISTA ALEGRE', 'TIJUCA', 'SAO CRISTOVAO', 'ROCINHA', 'ENGENHEIRO LEAL', 'MARE', 'OLINDA', 'ACARI',
+                'MANGUINHOS', 'MARUREIRA', 'JACARE', 'COLEGIO', 'BAIRRO MEIER', 'QUINTINO', 'GALEÃO', 'PORTUGUESA',
+                'TAUÁ', 'TUBIACANGA', 'BENFICA', 'HIGIENOPOLIS', 'MARÉ', 'TOMAS COELHO', 'MAGALHAES BASTOS'
+            },
+            'Rio_Zona Oeste': {
+                'ANIL', 'BARRA DA TIJUCA', 'BARRA DE GUARATIBA', 'CAMORIM', 'CIDADE DE DEUS', 'CURICICA',
+                'FREGUESIA (JACAREPAGUÁ)', 'GARDÊNIA AZUL', 'GRUMARI', 'ITANHANGÁ', 'JACAREPAGUÁ', 'JOÁ',
+                'PECHINCHA', 'RECREIO DOS BANDEIRANTES', 'TANQUE', 'TAQUARA', 'VARGEM GRANDE', 'VARGEM PEQUENA',
+                'CAMPO GRANDE', 'SANTISSIMO', 'SENADOR CAMARA', 'COSMOS', 'INHOAIBA', 'GUARATIBA', 'SEPETIBA',
+                'SANTA CRUZ', 'AUGUSTO VASCONCELOS', 'RIO DAS PEDRAS', 'MUZEMA', 'CHATUBA', 'GARDENIA AZUL',
+                'JACAREPAGUA', 'BARBANTE', 'FREGUESIA'
+            }
+        }
+
+        # Mapeamento para outras cidades/bairros específicos
+        OUTRAS_LOCALIDADES = {
+            'NOVA ERA': 'Nova Iguaçu', 'AUSTIN': 'Nova Iguaçu', 'XANGRILÁ': 'Belford Roxo',
+            'MESQUITA': 'Mesquita', 'SANTO EXPEDITO': 'Queimados', 'NILÓPOLIS': 'Nilópolis'
+        }
+
         def classificar_regiao_rio(row):
-            if row['CIDADE'] == 'Rio de Janeiro':
-                bairro = row['BAIRRO'].upper()
-                if bairro in ['BOTAFOGO', 'CATETE', 'COPACABANA', 'COSME VELHO', 'FLAMENGO', 'GÁVEA', 'GLÓRIA', 'HUMAITÁ', 'IPANEMA', 'JARDIM BOTÂNICO', 'LAGOA', 'LARANJEIRAS', 'LEBLON', 'LEME', 'SÃO CONRADO', 'URCA', 'GAVEA', 'JARDIM BOTANICO', 'VIDIGAL', 'SÃO CONRADO']:
-                    return 'Rio_Zona Sul'
-                elif bairro in ['Bonsucesso', 'Bancários', 'Cacuia', 'Cidade Universitária', 'Cocotá', 'Freguesia (Ilha)', 'Jardim Carioca', 'Jardim Guanabara', 'Moneró', 'Pitangueiras', 'Praia da Bandeira', 'Ribeira', 'Zumbi', 'Caju', 'Catumbi', 'Centro', 'Cidade Nova', 'Estácio', 'Gamboa', 'Lapa', 'Mangueira', 'Paquetá', 'Rio Comprido', 'Santa Teresa', 'Santo Cristo', 'Saúde', 'Vasco da Gama', 'SANTA TERESA', 'CIDADE NOVA', 'SANTO CRISTO', 'GAMBOA/SAUDE', 'GLORIA', 'CAJU', 'CENTRO']:
-                    return 'Rio_Centro'
-                elif bairro in ['ABOLIÇÃO', 'ÁGUA SANTA', 'ACÁRI', 'ALDEIA CAMPISTA', 'ALTO DA BOA VISTA', 'ANCHIETA', 'ANDARAÍ', 'BANGU', 'BARROS FILHO', 'BENTO RIBEIRO', 'BRÁS DE PINA', 'CACHAMBI', 'CAMPO DOS AFONSOS', 'CAMPINHO', 'CASCADURA', 'CAVALCANTI', 'COELHO NETO', 'COLÉGIO', 'COMPLEXO DO ALEMÃO', 'CORDOVIL', 'COSTA BARROS', 'DEL CASTILHO', 'DEODORO', 'ENCANTADO', 'ENGENHO DA RAINHA', 'ENGENHO DE DENTRO', 'ENGENHO NOVO', 'GRAJAÚ', 'GUADALUPE', 'HIGIENÓPOLIS', 'HONÓRIO GURGEL', 'INHAÚMA', 'IRAJÁ', 'JACARÉ', 'JACAREZINHO', 'JARDIM AMÉRICA', 'LINS DE VASCONCELOS', 'MADUREIRA', 'MAGALHÃES BASTOS', 'MARACANÃ', 'MARECHAL HERMES', 'MARIA DA GRAÇA', 'MÉIER', 'OLARIA', 'OSWALDO CRUZ', 'PARADA DE LUCAS', 'PARQUE ANCHIETA', 'PARQUE COLÚMBia', 'PAVUNA', 'Paciência', 'Padre Miguel', 'Penha', 'Penha Circular', 'Piedade', 'Pilares', 'Praça da Bandeira', 'Praça Seca', 'Quintino Bocaiuva', 'RAMOS', 'REALENGO', 'RIACHUELO', 'RICARDO DE ALBUQUERQUE', 'ROCHA', 'ROCHA MIRANDA', 'SAMPAIO', 'SÃO FRANCISCO XAVIER', 'Senador Camará', 'Senador Vasconcelos', 'Santíssimo', 'Saúde', 'TODOS OS SANTOS', 'TOMÁS COELHO', 'TURIAÇU', 'VILA DA PENHA', 'VILA ISABEL', 'VILA KOSMOS', 'VILA MILITAR', 'VILA VALQUEIRE', 'VICENTE DE CARVALHO', 'VIGÁRIO GERAL', 'VISTA ALEGRE', 'TIJUCA', 'SAO CRISTOVAO', 'ROCINHA', 'ENGENHEIRO LEAL', 'BRAS DE PINA', 'PENHA', 'PIEDADE', 'BONSUCESSO', 'MARE', 'GRAJAU', 'OLINDA', 'ACARI', 'MANGUEIRA', 'MANGUINHOS', 'MARUREIRA', 'JACARE', 'PILARES', 'COLEGIO', 'PENHA CIRCULAR', 'SAO FRANCISCO XAVIER', 'BAIRRO MEIER', 'JARDIM AMERICA', 'IRAJA', 'BRAZ DE PINA', 'HONORIO GURGEL', 'QUINTINO', 'MANGUINHOS', 'ROCHA', 'GALEÃO', 'PORTUGUESA', 'TAUA', 'TUBIACANGA', 'BENFICA', 'HIGIENOPOLIS', 'MANGUINHOS ', 'MARÉ', 'PENHA CIRCULAR', 'RIO COMPRIDO', 'ROCHA ', 'TOMAS COELHO', 'TAUÁ', 'TUBIACANGA', 'MAGALHAES BASTOS', 'BAIRRO MEIER']:
-                    return 'Rio_Zona Norte'
-                elif bairro in ['ANIL', 'BARRA DA TIJUCA', 'BARRA DE GUARATIBA', 'CAMORIM', 'CIDADE DE DEUS', 'CURICICA', 'FREGUESIA (JACAREPAGUÁ)', 'GARDÊNIA AZUL', 'GRUMARI', 'ITANHANGÁ', 'JACAREPAGUÁ', 'JOÁ', 'PRAÇA SECA', 'PECHINCHA', 'RECREIO DOS BANDEIRANTES', 'TANQUE', 'TAQUARA', 'VARGEM GRANDE', 'VARGEM PEQUENA', 'VILA VALQUEIRE', 'CAMPO GRANDE', 'SENADOR VASCONCELOS', 'SANTISSIMO', 'REALENGO', 'BANGU', 'PADRE MIGUEL', 'SENADOR CAMARA', 'PACIENCIA', 'COSMOS', 'INHOAIBA', 'GUARATIBA', 'SEPETIBA', 'SANTA CRUZ', 'AUGUSTO VASCONCELOS', 'RIO DAS PEDRAS', 'MUZEMA', 'CHATUBA', 'GARDENIA AZUL', 'ITANHANGA', 'JACAREPAGUA', 'BARBANTE', 'FREGUESIA', 'REALENGO']:
-                    return 'Rio_Zona Oeste'
-                else:
-                    return 'Rio_Outra'
-            elif row['BAIRRO'] in ['Nova Era', 'Austin']:
-                return 'Nova Iguaçu'
-            elif row['BAIRRO'] == 'Xangrilá':
-                return 'Belford Roxo'
-            elif row['BAIRRO'] == 'Mesquita':
-                return 'Mesquita'
-            elif row['BAIRRO'] == 'Santo Expedito':
-                return 'Queimados'
-            elif row['BAIRRO'] == 'Nilópolis':
-                return 'Nilópolis'
-            else:
-                return row['CIDADE']
+            bairro = str(row['BAIRRO']).upper().strip()
+            cidade = str(row['CIDADE'])
+
+            if cidade == 'Rio de Janeiro':
+                for regiao, bairros_na_regiao in BAIRROS_RIO.items():
+                    if bairro in bairros_na_regiao:
+                        return regiao
+                return 'Rio_Outra'
+
+            if bairro in OUTRAS_LOCALIDADES:
+                return OUTRAS_LOCALIDADES[bairro]
+
+            return cidade
 
         df['REGIAO_CIDADE'] = df.apply(classificar_regiao_rio, axis=1)
 
