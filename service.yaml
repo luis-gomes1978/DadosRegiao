@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dadosregiao-service
+spec:
+  type: LoadBalancer # <-- Pede um IP público ao provedor de nuvem (DigitalOcean)
+  selector:
+    app: dadosregiao # Conecta este serviço aos contêineres (Pods) criados pelo Deployment
+  ports:
+  - protocol: TCP
+    port: 80       # A porta pública que os usuários acessarão (porta padrão da web)
+    targetPort: 8000 # A porta do contêiner para onde o tráfego será enviado

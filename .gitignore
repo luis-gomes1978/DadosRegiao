@@ -1,5 +1,5 @@
 # Arquivos de configuração e segredos
-config.yaml
+#config.yaml
 
 # Ambiente Virtual do Python
 venv/

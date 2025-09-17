@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dadosregiao-deployment
+spec:
+  replicas: 1 # Apenas 1 cópia para economizar
+  selector:
+    matchLabels:
+      app: dadosregiao
+  template:
+    metadata:
+      labels:
+        app: dadosregiao
+    spec:
+      containers:
+      - name: dadosregiao-container
+        image: luisgomes1978/dadosregiao:v1 # <-- USE A TAG CORRETA
+        ports:
+        - containerPort: 8000 # A porta que o Gunicorn usa dentro do contêiner
