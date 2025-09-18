@@ -88,7 +88,7 @@ echo "6. Aplicando manifestos no cluster..."
 
 # Substitui o placeholder da imagem no deployment.yaml e aplica
 # Isso garante que o Kubernetes use a nova imagem com a tag única
-sed "s|image: luisgomes1978/dadosregiao:v1|image: $IMAGE_NAME|g" deployment.yaml | kubectl apply -f -
+sed "s|__IMAGE_PLACEHOLDER__|$IMAGE_NAME|g" deployment.yaml | kubectl apply -f -
 
 kubectl apply -f service.yaml -f ingress.yaml
 # Substitui o e-mail no ClusterIssuer e aplica sem modificar o arquivo original

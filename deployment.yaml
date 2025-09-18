@@ -14,9 +14,12 @@ spec:
     spec:
       containers:
       - name: dadosregiao-container
-        image: luisgomes1978/dadosregiao:v1 # <-- USE A TAG CORRETA
+        image: __IMAGE_PLACEHOLDER__ # Placeholder será substituído pelo script de deploy
         ports:
         - containerPort: 8501 # A porta que o Streamlit usa dentro do contêiner
+        env:
+        - name: TZ
+          value: "America/Sao_Paulo" # Define o timezone para GMT-3 (Horário de Brasília)
         imagePullPolicy: Always # Garante que a imagem mais recente seja sempre baixada
         # Verificações de saúde para que o Kubernetes gerencie o pod de forma inteligente
         readinessProbe:

@@ -268,9 +268,23 @@ if st.session_state.get("authentication_status") or DEV_MODE:
         display_chart(px.pie, dist_plano, title="Colaboradores por Plano", names='PLANO', values='Quantidade', hole=0.5)
 
     # --- Mapa de Calor do Brasil ---
-    display_chart(px.density_map, df_filtrado, title="Distribuição de Colaboradores por Cidade",
-                  lat="latitude", lon="longitude", radius=10, zoom=3, height=600,
-                  mapbox_style="open-street-map")
+    st.subheader("Distribuição de Colaboradores por Cidade")
+    try:
+        if not df_filtrado.empty:
+            fig_mapa = px.density_map(df_filtrado,
+                                      lat="latitude",
+                                      lon="longitude",
+                                      radius=10,
+                                      zoom=3,
+                                      height=600)
+            # A forma correta de definir o estilo do mapa é através do update_layout
+            fig_mapa.update_layout(mapbox_style="open-street-map")
+            st.plotly_chart(fig_mapa, use_container_width=True)
+        else:
+            st.warning("Nenhum dado para exibir no mapa.")
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao gerar o mapa de calor. A equipe de desenvolvimento já foi notificada.")
+        logger.error(f"Erro no mapa de calor: {e}")
 
     # --- Tabela de Dados Detalhados ---
     st.subheader("Dados Detalhados")
