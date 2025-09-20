@@ -1,0 +1,11 @@
+# Use uma versão específica e estável do Python
+FROM python:3.11-slim
+
+# Instala SOMENTE a biblioteca necessária, na versão mais recente.
+# A flag --break-system-packages é necessária em imagens Python mais novas para permitir a instalação global.
+RUN pip install --no-cache-dir --break-system-packages "streamlit-authenticator>=0.4.0"
+
+# Define o comando para executar a ferramenta de CLI embutida da própria biblioteca,
+# a função 'main' do módulo 'cli' via Python. Este é o método mais robusto
+# e explícito, contornando problemas de PATH ou de resolução de módulos.
+CMD ["python", "-c", "from streamlit_authenticator.cli import main; main()"]

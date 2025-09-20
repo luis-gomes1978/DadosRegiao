@@ -1,25 +1,36 @@
-# Etapa 1: Base e Instalação de Dependências
-# Usar uma imagem Python oficial e leve como base.
-FROM python:3.10-slim
+# Estágio 1: Build
+# Usar uma imagem Python específica e estável
+FROM python:3.11-slim as builder
 
-# Definir o diretório de trabalho dentro do contêiner.
 WORKDIR /app
 
-# Copiar apenas o arquivo de dependências primeiro.
-# Isso aproveita o cache do Docker: as dependências só serão reinstaladas se o requirements.txt mudar.
-COPY requirements.txt .
+# Instalar dependências de build, se necessário
+# RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
-# Instalar as dependências.
+# Copiar primeiro o requirements.txt para aproveitar o cache do Docker
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
+
+# Estágio 2: Produção
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar dependências do sistema necessárias
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar o restante do código do aplicativo.
-# Note que NÃO estamos copiando 'config.yaml'. Ele será injetado em tempo de execução.
-COPY app.py .
-COPY dadosregiao.csv .
+COPY . .
 
-# Expor a porta que o Streamlit usa.
+# Criar diretório para configurações
+RUN mkdir -p /app/config
+COPY config.yaml /app/config/
+
 EXPOSE 8501
 
-# Comando para executar o aplicativo quando o contêiner iniciar.
-# Os argumentos garantem que o Streamlit seja acessível externamente.
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Modificar o comando para usar variáveis de ambiente
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.baseUrlPath=/"]
