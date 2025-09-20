@@ -3,6 +3,7 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 import streamlit_authenticator as stauth
+import os
 import yaml
 from yaml.loader import SafeLoader
 import logging
@@ -20,10 +21,16 @@ st.set_page_config(
     layout="wide",
 )
 
-# Adiciona um timestamp para verificar a atualização do deploy
-sao_paulo_tz = timezone(timedelta(hours=-3))
-now = datetime.now(sao_paulo_tz)
-st.markdown(f"<p style='text-align: right; color: grey;'>Página gerada em: {now.strftime('%d/%m/%Y %H:%M:%S')}</p>", unsafe_allow_html=True)
+def get_deploy_timestamp():
+    """Lê o timestamp do deploy da variável de ambiente e o formata."""
+    sao_paulo_tz = timezone(timedelta(hours=-3))
+    try:
+        unix_timestamp = int(os.environ.get("DEPLOY_TIMESTAMP", 0))
+        deploy_time = datetime.fromtimestamp(unix_timestamp, tz=sao_paulo_tz)
+        return deploy_time.strftime('%d/%m/%Y %H:%M:%S')
+    except (ValueError, TypeError):
+        return "N/A"
+st.markdown(f"<p style='text-align: right; color: grey;'>Versão do deploy: {get_deploy_timestamp()}</p>", unsafe_allow_html=True)
 
 
 # --- MODO DE DESENVOLVIMENTO ---
@@ -64,7 +71,7 @@ if st.session_state.get("authentication_status") or DEV_MODE:
     @st.cache_data
     def get_data():
         """Função com cache para carregar e processar os dados uma única vez."""
-        return load_and_process_data("data/dadosregiao.csv")
+        return load_and_process_data("data/dadosregiao.csv") # Caminho correto para os dados
 
     df = get_data()
 
