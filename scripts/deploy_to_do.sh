@@ -88,11 +88,11 @@ echo "6. Aplicando manifestos no cluster..."
 
 # Substitui o placeholder da imagem no deployment.yaml e aplica
 # Isso garante que o Kubernetes use a nova imagem com a tag única
-sed "s|__IMAGE_PLACEHOLDER__|$IMAGE_NAME|g" deployment.yaml | kubectl apply -f -
+sed "s|__IMAGE_PLACEHOLDER__|$IMAGE_NAME|g" ../k8s/deployment.yaml | kubectl apply -f -
 
-kubectl apply -f service.yaml -f ingress.yaml
+kubectl apply -f ../k8s/service.yaml -f ../k8s/ingress.yaml
 # Substitui o e-mail no ClusterIssuer e aplica sem modificar o arquivo original
-sed "s/seu-email@exemplo.com/$LETSENCRYPT_EMAIL/g" cluster-issuer.yaml | kubectl apply -f -
+sed "s/seu-email@exemplo.com/$LETSENCRYPT_EMAIL/g" ../k8s/cluster-issuer.yaml | kubectl apply -f -
 
 echo "7. Configurações de Ingress e Certificado aplicadas."
 echo "   Aguarde alguns minutos para que o certificado seja emitido pelo Let's Encrypt."

@@ -1,24 +1,43 @@
-# Arquivos de configuração e segredos
-# Arquivos de configuração com senhas e chaves
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# Microsoft Office
+*.xlsx
+*.xls
+
+# Arquivos de configuração local e dados sensíveis
 config.yaml
 
-# Ambiente Virtual do Python
-# Ambientes virtuais do Python
-venv/
-*.venv
-.venv/
-env/
-.env
-
-# Cache do Python
-# Arquivos de cache e compilados do Python
-__pycache__/
-*.pyc
-
-# Arquivos do Streamlit
-.streamlit/
-
-# Arquivos de Documentação
-DOCUMENTATION.md
-# Arquivos de sistema operacional
-.DS_Storehashed_password.txt
+# Dados brutos
+data/

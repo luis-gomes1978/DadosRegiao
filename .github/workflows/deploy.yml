@@ -1,0 +1,35 @@
+name: Deploy to DigitalOcean Kubernetes
+
+on:
+  push:
+    branches:
+      - main # O workflow roda quando há um push no branch main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Make deploy script executable
+        run: chmod +x ./scripts/deploy_to_do.sh
+
+      - name: Run deploy script
+        run: ./scripts/deploy_to_do.sh
+        env:
+          # Passa o e-mail como uma variável de ambiente para o script
+          # Configure este secret nas configurações do seu repositório no GitHub
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}

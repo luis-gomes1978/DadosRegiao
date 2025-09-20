@@ -2,13 +2,12 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from datetime import datetime, timezone, timedelta
-import numpy as np
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
-import requests
-import time
 import logging
+from src.processing import load_and_process_data
+
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)
@@ -62,113 +61,12 @@ if st.session_state.get("authentication_status") or DEV_MODE:
         authenticator.logout('Logout', 'sidebar')
         st.sidebar.title(f'Bem-vindo(a) *{name}*')
     
-    # --- Funções de Processamento de Dados ---
-    def _calculate_age(df: pd.DataFrame) -> pd.DataFrame:
-        """Calcula a idade dos colaboradores com base na data de nascimento."""
-        df['DT_NASCIMENTO'] = pd.to_datetime(df['DT_NASCIMENTO'], format='%d/%m/%Y', errors='coerce')
-        # Cálculo robusto da idade, arredondando para baixo para garantir a conversão segura para inteiro.
-        age_in_years = (datetime.now() - df['DT_NASCIMENTO']).dt.days / 365.25
-        df['IDADE'] = np.floor(age_in_years).astype('Int64')
-        return df
-
-    def _map_brazilian_regions(df: pd.DataFrame) -> pd.DataFrame:
-        """Mapeia o estado para a região geográfica correspondente."""
-        mapa_regioes = {
-            'AC': 'Norte', 'AP': 'Norte', 'AM': 'Norte', 'PA': 'Norte', 'RO': 'Norte', 'RR': 'Norte', 'TO': 'Norte',
-            'AL': 'Nordeste', 'BA': 'Nordeste', 'CE': 'Nordeste', 'MA': 'Nordeste', 'PB': 'Nordeste', 'PE': 'Nordeste', 'PI': 'Nordeste', 'RN': 'Nordeste', 'SE': 'Nordeste',
-            'DF': 'Centro-Oeste', 'GO': 'Centro-Oeste', 'MT': 'Centro-Oeste', 'MS': 'Centro-Oeste',
-            'ES': 'Sudeste', 'MG': 'Sudeste', 'RJ': 'Sudeste', 'SP': 'Sudeste',
-            'PR': 'Sul', 'RS': 'Sul', 'SC': 'Sul'
-        }
-        df['REGIAO'] = df['ESTADO'].map(mapa_regioes)
-        return df
-
-    def _classify_job_type(df: pd.DataFrame) -> pd.DataFrame:
-        """Classifica os cargos em 'Gerencial' ou 'Operacional'."""
-        cargos_gerenciais = ['GERENTE', 'DIRETOR', 'CONTROLLER', 'CHEF EXECUTIVO DE COZINHA', 'SUPERVISOR']
-        df['TIPO_CARGO'] = df['FUNÇÃO'].apply(lambda x: 'Gerencial' if any(cargo in str(x).upper() for cargo in cargos_gerenciais) else 'Operacional')
-        return df
-
-    def _merge_geo_coordinates(df: pd.DataFrame) -> pd.DataFrame:
-        """Busca e adiciona coordenadas geográficas com base na cidade."""
-        try:
-            logger.info("Buscando coordenadas geográficas de municípios...")
-            df_municipios = pd.read_csv("https://raw.githubusercontent.com/kelvins/Municipios-Brasileiros/main/csv/municipios.csv")
-            df_municipios = df_municipios.rename(columns={'nome': 'CIDADE', 'uf': 'ESTADO'})
-            df = pd.merge(df, df_municipios[['CIDADE', 'latitude', 'longitude']], on='CIDADE', how='left')
-            logger.info("Coordenadas geográficas mescladas com sucesso.")
-        except Exception as e:
-            logger.error(f"Falha ao buscar ou mesclar coordenadas geográficas: {e}")
-            # Cria colunas vazias para que o resto do app não falhe
-            df['latitude'] = 0
-            df['longitude'] = 0
-
-        # Preenche coordenadas ausentes com 0 para evitar erros no mapa
-        df['latitude'].fillna(0, inplace=True)
-        df['longitude'].fillna(0, inplace=True)
-
-        # Adiciona ruído aleatório para evitar sobreposição exata no mapa
-        np.random.seed(0)
-        noise_lat = np.random.normal(0, 0.01, size=len(df))
-        noise_lon = np.random.normal(0, 0.01, size=len(df))
-        df['latitude'] += noise_lat
-        df['longitude'] += noise_lon
-        return df
-
-    def _classify_special_locations(df: pd.DataFrame) -> pd.DataFrame:
-        """Agrupa bairros do Rio e outras localidades específicas."""
-        BAIRROS_RIO = {
-            'Rio_Zona Sul': {'BOTAFOGO', 'CATETE', 'COPACABANA', 'COSME VELHO', 'FLAMENGO', 'GÁVEA', 'GLÓRIA', 'HUMAITÁ', 'IPANEMA', 'JARDIM BOTÂNICO', 'LAGOA', 'LARANJEIRAS', 'LEBLON', 'LEME', 'SÃO CONRADO', 'URCA', 'VIDIGAL'},
-            'Rio_Centro': {'BONSUCESSO', 'BANCÁRIOS', 'CACUIA', 'CIDADE UNIVERSITÁRIA', 'COCOTÁ', 'FREGUESIA (ILHA)', 'JARDIM CARIOCA', 'JARDIM GUANABARA', 'MONERÓ', 'PITANGUEIRAS', 'PRAIA DA BANDEIRA', 'RIBEIRA', 'ZUMBI', 'CAJU', 'CATUMBI', 'CENTRO', 'CIDADE NOVA', 'ESTÁCIO', 'GAMBOA', 'LAPA', 'MANGUEIRA', 'PAQUETÁ', 'RIO COMPRIDO', 'SANTA TERESA', 'SANTO CRISTO', 'SAÚDE', 'VASCO DA GAMA', 'GAMBOA/SAUDE', 'GLORIA'},
-            'Rio_Zona Norte': {'ABOLIÇÃO', 'ÁGUA SANTA', 'ACÁRI', 'ALDEIA CAMPISTA', 'ALTO DA BOA VISTA', 'ANCHIETA', 'ANDARAÍ', 'BANGU', 'BARROS FILHO', 'BENTO RIBEIRO', 'BRÁS DE PINA', 'CACHAMBI', 'CAMPO DOS AFONSOS', 'CAMPINHO', 'CASCADURA', 'CAVALCANTI', 'COELHO NETO', 'COLÉGIO', 'COMPLEXO DO ALEMÃO', 'CORDOVIL', 'COSTA BARROS', 'DEL CASTILHO', 'DEODORO', 'ENCANTADO', 'ENGENHO DA RAINHA', 'ENGENHO DE DENTRO', 'ENGENHO NOVO', 'GRAJAÚ', 'GUADALUPE', 'HIGIENÓPOLIS', 'HONÓRIO GURGEL', 'INHAÚMA', 'IRAJÁ', 'JACARÉ', 'JACAREZINHO', 'JARDIM AMÉRICA', 'LINS DE VASCONCELOS', 'MADUREIRA', 'MAGALHÃES BASTOS', 'MARACANÃ', 'MARECHAL HERMES', 'MARIA DA GRAÇA', 'MÉIER', 'OLARIA', 'OSWALDO CRUZ', 'PARADA DE LUCAS', 'PARQUE ANCHIETA', 'PARQUE COLÚMBIA', 'PAVUNA', 'PACIÊNCIA', 'PADRE MIGUEL', 'PENHA', 'PENHA CIRCULAR', 'PIEDADE', 'PILARES', 'PRAÇA DA BANDEIRA', 'PRAÇA SECA', 'QUINTINO BOCAIUVA', 'RAMOS', 'REALENGO', 'RIACHUELO', 'RICARDO DE ALBUQUERQUE', 'ROCHA', 'ROCHA MIRANDA', 'SAMPAIO', 'SÃO FRANCISCO XAVIER', 'SENADOR CAMARÁ', 'SENADOR VASCONCELOS', 'SANTÍSSIMO', 'TODOS OS SANTOS', 'TOMÁS COELHO', 'TURIAÇU', 'VILA DA PENHA', 'VILA ISABEL', 'VILA KOSMOS', 'VILA MILITAR', 'VILA VALQUEIRE', 'VICENTE DE CARVALHO', 'VIGÁRIO GERAL', 'VISTA ALEGRE', 'TIJUCA', 'SAO CRISTOVAO', 'ROCINHA', 'ENGENHEIRO LEAL', 'MARE', 'OLINDA', 'ACARI', 'MANGUINHOS', 'MARUREIRA', 'JACARE', 'COLEGIO', 'BAIRRO MEIER', 'QUINTINO', 'GALEÃO', 'PORTUGUESA', 'TAUÁ', 'TUBIACANGA', 'BENFICA', 'HIGIENOPOLIS', 'MARÉ', 'TOMAS COELHO', 'MAGALHAES BASTOS'},
-            'Rio_Zona Oeste': {'ANIL', 'BARRA DA TIJUCA', 'BARRA DE GUARATIBA', 'CAMORIM', 'CIDADE DE DEUS', 'CURICICA', 'FREGUESIA (JACAREPAGUÁ)', 'GARDÊNIA AZUL', 'GRUMARI', 'ITANHANGÁ', 'JACAREPAGUÁ', 'JOÁ', 'PECHINCHA', 'RECREIO DOS BANDEIRANTES', 'TANQUE', 'TAQUARA', 'VARGEM GRANDE', 'VARGEM PEQUENA', 'CAMPO GRANDE', 'SANTISSIMO', 'SENADOR CAMARA', 'COSMOS', 'INHOAIBA', 'GUARATIBA', 'SEPETIBA', 'SANTA CRUZ', 'AUGUSTO VASCONCELOS', 'RIO DAS PEDRAS', 'MUZEMA', 'CHATUBA', 'GARDENIA AZUL', 'JACAREPAGUA', 'BARBANTE', 'FREGUESIA'}
-        }
-        OUTRAS_LOCALIDADES = {
-            'NOVA ERA': 'Nova Iguaçu', 'AUSTIN': 'Nova Iguaçu', 'XANGRILÁ': 'Belford Roxo',
-            'MESQUITA': 'Mesquita', 'SANTO EXPEDITO': 'Queimados', 'NILÓPOLIS': 'Nilópolis'
-        }
-
-        def classificar(row):
-            bairro = str(row['BAIRRO']).upper().strip()
-            if row['CIDADE'] == 'Rio de Janeiro':
-                for regiao, bairros_na_regiao in BAIRROS_RIO.items():
-                    if bairro in bairros_na_regiao:
-                        return regiao
-                return 'Rio_Outra'
-            return OUTRAS_LOCALIDADES.get(bairro, row['CIDADE'])
-
-        df['REGIAO_CIDADE'] = df.apply(classificar, axis=1)
-        return df
-
     @st.cache_data
-    def load_data():
-        """Carrega e processa todos os dados em uma pipeline."""
-        # Leitura robusta do CSV, lidando com a codificação 'utf-8-sig' que remove o BOM
-        # e otimizando o uso de memória com dtypes.
-        dtype_spec = {
-            'CHAPA': 'str',
-            'UNIDADE': 'category',
-            'FUNÇÃO': 'category',
-            'SEXO': 'category',
-            'BAIRRO': 'str',
-            'CIDADE': 'str',
-            'ESTADO': 'category',
-            'CEP': 'str',
-            'CODSITUACAO': 'category',
-            'PLANO': 'category',
-            'Status': 'category'
-        }
-        df = pd.read_csv(
-            "dadosregiao.csv", sep=';', encoding='utf-8-sig', on_bad_lines='warn', dtype=dtype_spec
-        )
-        df = _calculate_age(df)
-        df = _map_brazilian_regions(df)
-        df = _classify_job_type(df)
-        df = _merge_geo_coordinates(df)
-        df = _classify_special_locations(df)
-        return df
+    def get_data():
+        """Função com cache para carregar e processar os dados uma única vez."""
+        return load_and_process_data("data/dadosregiao.csv")
 
-    df = load_data()
+    df = get_data()
 
     # --- Barra Lateral (Filtros) ---
     st.sidebar.header("🔍 Filtros")
