@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# --- Best Practice: Make the script location-aware ---
+# This finds the script's own directory and sets the project root as the parent.
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_ROOT="$SCRIPT_DIR/.."
+
 echo "--- Iniciando Deploy para DigitalOcean Kubernetes ---"
 
 # Variáveis de Configuração
@@ -71,7 +76,12 @@ IMAGE_NAME="luisgomes1978/dadosregiao:$IMAGE_TAG"
 
 # 4. Construir a imagem Docker para AMD64
 echo "4. Construindo imagem Docker com a tag única: $IMAGE_NAME"
-docker build --no-cache --platform linux/amd64 -t "$IMAGE_NAME" .
+echo "   Usando Dockerfile em: $PROJECT_ROOT/Dockerfile"
+if [ ! -f "$PROJECT_ROOT/Dockerfile" ]; then
+    echo "Erro: Dockerfile não encontrado em $PROJECT_ROOT/Dockerfile"
+    exit 1
+fi
+docker build --no-cache --platform linux/amd64 -t "$IMAGE_NAME" -f "$PROJECT_ROOT/Dockerfile" "$PROJECT_ROOT"
 
 # 5. Enviar a imagem para o Docker Hub
 echo "5. Enviando imagem para o Docker Hub..."
@@ -80,8 +90,8 @@ docker push "$IMAGE_NAME"
 # 5.5. Criar o Secret do Kubernetes a partir do config.yaml
 echo "5.5. Criando/Atualizando o Secret do Kubernetes para o config.yaml..."
 # Deleta o secret se ele já existir, para garantir que está sempre atualizado
-kubectl delete secret dadosregiao-config --ignore-not-found=true
-kubectl create secret generic dadosregiao-config --from-file=config.yaml=./config.yaml
+kubectl delete secret dadosregiao-config --ignore-not-found=true > /dev/null
+kubectl create secret generic dadosregiao-config --from-file=config.yaml="$PROJECT_ROOT/config.yaml"
 
 # 6. Aplicar manifestos Kubernetes
 echo "6. Aplicando manifestos no cluster..."
@@ -90,11 +100,11 @@ echo "6. Aplicando manifestos no cluster..."
 # Isso garante que o Kubernetes use a nova imagem com a tag única
 sed -e "s|__IMAGE_PLACEHOLDER__|$IMAGE_NAME|g" \
     -e "s|__DEPLOY_TIMESTAMP_PLACEHOLDER__|$IMAGE_TAG|g" \
-    ../k8s/deployment.yaml | kubectl apply -f -
+    "$PROJECT_ROOT/k8s/deployment.yaml" | kubectl apply -f -
 
-kubectl apply -f ../k8s/service.yaml -f ../k8s/ingress.yaml
+kubectl apply -f "$PROJECT_ROOT/k8s/service.yaml" -f "$PROJECT_ROOT/k8s/ingress.yaml"
 # Substitui o e-mail no ClusterIssuer e aplica sem modificar o arquivo original
-sed "s/seu-email@exemplo.com/$LETSENCRYPT_EMAIL/g" ../k8s/cluster-issuer.yaml | kubectl apply -f -
+sed "s/seu-email@exemplo.com/$LETSENCRYPT_EMAIL/g" "$PROJECT_ROOT/k8s/cluster-issuer.yaml" | kubectl apply -f -
 
 echo "7. Configurações de Ingress e Certificado aplicadas."
 echo "   Aguarde alguns minutos para que o certificado seja emitido pelo Let's Encrypt."

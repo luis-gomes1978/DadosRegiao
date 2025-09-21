@@ -1,7 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dadosregiao-deployment
+  name: dadosregiao
+  labels:
+    app: dadosregiao
 spec:
   replicas: 1 # Apenas 1 cópia para economizar
   selector:
@@ -20,6 +22,8 @@ spec:
         env:
         - name: TZ
           value: "America/Sao_Paulo" # Define o timezone para GMT-3 (Horário de Brasília)
+        - name: DEPLOY_TIMESTAMP
+          value: "__DEPLOY_TIMESTAMP_PLACEHOLDER__"
         imagePullPolicy: Always # Garante que a imagem mais recente seja sempre baixada
         # Verificações de saúde para que o Kubernetes gerencie o pod de forma inteligente
         readinessProbe:

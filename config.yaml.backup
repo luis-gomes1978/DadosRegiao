@@ -1,18 +1,12 @@
 credentials:
   usernames:
     # Certifique-se de que este é o nome de usuário que você quer usar para o login
-    lgomes:
-      email: seu-email@exemplo.com
-      name: Luis Gomes
+    admin:
+      email: admin@example.com
+      name: Admin User
       # Cole o hash que você gerou aqui
       password: '$2b$12$Zy9UQ6E9XYwPNo8Eznqr7.Fq1h5RZZgFge3S16Ro1mS.VNK.YrydK'
-    julia:
-      email: juliarh.lessa@gmail.com
-      name: Julia
-      password: '$2b$12$vDhM1lC.6oGkVg2gxyuheuV8fPGNGuRXZ2rR/Bc/aqzXx6R0Lu6CS'
 cookie:
   expiry_days: 30
   key: 'mude_para_uma_chave_secreta_forte' # IMPORTANTE: Mude isso para uma string aleatória e segura
   name: 'dadosregiao_cookie'
-preauthorized:
-  emails: []

@@ -41,3 +41,6 @@ config.yaml
 
 # Dados brutos
 data/
+
+# Scripts locais
+generate_hash.py
