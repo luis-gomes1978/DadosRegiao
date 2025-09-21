@@ -14,7 +14,7 @@ REGION="nyc3"
 K8S_VERSION="1.33.1-do.3" # Versão recomendada (verificada via doctl kubernetes options versions)
 NODE_SIZE="s-1vcpu-2gb"   # Menor tamanho disponível (verificado via doctl compute size list)
 NODE_COUNT=1              # Número de nós para o pool inicial
-LETSENCRYPT_EMAIL="seu-email@exemplo.com" # <-- IMPORTANTE: Troque pelo seu e-mail
+LETSENCRYPT_EMAIL="luis.gomes@slggti.com.br" # <-- IMPORTANTE: Troque pelo seu e-mail
 
 # 1. Verificar autenticação (doctl e docker)
 echo "1. Verificando autenticação do doctl e docker..."
