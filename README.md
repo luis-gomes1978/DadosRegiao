@@ -2,7 +2,7 @@
 
 ## 1. Visão Geral do Projeto
 
-Este projeto consiste em um dashboard interativo para a análise de dados de colaboradores, desenvolvido em Python com a biblioteca Streamlit. A aplicação foi totalmente conteinerizada com Docker e implantada em um cluster Kubernetes na DigitalOcean, com automação de deploy, segurança HTTPS e escalabilidade.
+Este projeto consiste em um dashboard interativo para a análise de dados de colaboradores, desenvolvido em Python com a biblioteca Streamlit. A aplicação conta com um sistema de autenticação de usuários para controle de acesso, foi totalmente conteinerizada com Docker e implantada em um cluster Kubernetes na DigitalOcean, com automação de deploy, segurança HTTPS e escalabilidade.
 
 O objetivo é fornecer uma ferramenta visual para que gestores e analistas possam explorar dados demográficos e organizacionais da força de trabalho, aplicando filtros dinâmicos para obter insights.
 
@@ -43,7 +43,7 @@ Pod (dadosregiao-deployment)
 
 ## 3. Stack de Tecnologias
 
-*   **Linguagem:** Python 3.10
+*   **Linguagem:** Python 3.11
 *   **Análise de Dados:** Pandas, NumPy
 *   **Frontend e Visualização:** Streamlit, Plotly
 *   **Conteinerização:** Docker
@@ -58,7 +58,7 @@ Pod (dadosregiao-deployment)
 
 Cada arquivo no repositório tem um propósito específico:
 
-*   **`app.py`**: O ponto de entrada da aplicação Streamlit. Ele orquestra a interface do usuário e chama a lógica de negócio.
+*   **`app.py`**: O ponto de entrada da aplicação Streamlit. Ele orquestra a interface do usuário, a lógica de negócio e o sistema de autenticação.
 *   **`src/`**: Diretório que contém o código-fonte principal da aplicação.
     *   **`processing.py`**: Módulo com todas as funções de processamento e transformação de dados.
     *   **`constants.py`**: Centraliza constantes e grandes estruturas de dados, como mapeamentos de regiões e bairros.
@@ -67,7 +67,8 @@ Cada arquivo no repositório tem um propósito específico:
 *   **`config.yaml`**: Arquivo de configuração para credenciais de login (usado pelo `streamlit-authenticator`). **Este arquivo é sensível e não é enviado para o repositório Git.**
 *   **`Dockerfile`**: A "receita" para construir a imagem Docker da aplicação. Define o ambiente, instala as dependências e especifica como executar a aplicação.
 *   **`.dockerignore`**: Lista arquivos a serem ignorados durante a construção da imagem Docker, mantendo-a leve e segura.
-*   **`.gitignore`**: Lista arquivos a serem ignorados pelo Git, como o `config.yaml`, para evitar o vazamento de segredos.
+*   **`.gitignore`**: Lista arquivos a serem ignorados pelo Git, como o `config.yaml` e o `generate_hash.py`, para evitar o vazamento de segredos.
+*   **`generate_hash.py`**: Script auxiliar para gerar hashes de senhas para novos usuários do `streamlit-authenticator`. **Este arquivo é ignorado pelo Git.**
 *   **`k8s/`**: Contém todos os manifestos do Kubernetes.
     *   `deployment.yaml`, `service.yaml`, `ingress.yaml`, `cluster-issuer.yaml`.
 *   **`scripts/`**: Contém os scripts de automação.
@@ -79,11 +80,21 @@ Cada arquivo no repositório tem um propósito específico:
 
 ## 5. Lógica da Aplicação (`app.py`)
 
-O código da aplicação é estruturado em uma pipeline de processamento de dados e uma seção de renderização da interface.
+O código da aplicação é estruturado em um sistema de autenticação, uma pipeline de processamento de dados e uma seção de renderização da interface.
 
-### 5.1. Pipeline de Processamento de Dados
+### 5.1. Autenticação de Usuários
 
-A função `load_data()`, otimizada com `@st.cache_data`, é executada apenas uma vez para carregar e transformar os dados. Ela chama uma série de sub-funções, cada uma com uma responsabilidade única:
+A aplicação utiliza a biblioteca `streamlit-authenticator` para gerenciar o acesso dos usuários. As credenciais são configuradas no arquivo `config.yaml` (que não é versionado no Git por segurança).
+
+*   **Configuração:** O `config.yaml` armazena nomes de usuário, emails, nomes e senhas (em formato hash). Ele também define configurações de cookie para reautenticação.
+*   **Criação de Novos Usuários:** Para adicionar novos usuários, você deve:
+    1.  Gerar o hash da senha usando o script auxiliar `generate_hash.py` (execute `python3 generate_hash.py` no terminal e siga as instruções).
+    2.  Adicionar manualmente o novo usuário e o hash gerado ao arquivo `config.yaml`.
+*   **Login e Logout:** A interface de login é exibida na área principal da aplicação. Após o login bem-sucedido, um botão de logout é disponibilizado na barra lateral.
+
+### 5.2. Pipeline de Processamento de Dados
+
+A função `load_and_process_data()`, otimizada com `@st.cache_data`, é executada apenas uma vez para carregar e transformar os dados. Ela chama uma série de sub-funções, cada uma com uma responsabilidade única:
 
 1.  **Leitura Otimizada:** Carrega o `dadosregiao.csv` usando `pandas`, especificando tipos de dados (`dtype_spec`) para otimizar o uso de memória e tratando a codificação `utf-8-sig` para remover caracteres invisíveis (BOM).
 2.  **`_calculate_age`**: Calcula a idade de cada colaborador de forma robusta, tratando datas de nascimento inválidas.
@@ -92,7 +103,7 @@ A função `load_data()`, otimizada com `@st.cache_data`, é executada apenas um
 5.  **`_merge_geo_coordinates`**: Faz uma chamada de rede para um repositório público para obter as coordenadas de latitude e longitude de cada município. Possui tratamento de erro para o caso de falha de rede.
 6.  **`_classify_special_locations`**: Agrupa bairros específicos do Rio de Janeiro em zonas (Zona Sul, Zona Norte, etc.) e outras localidades da Baixada Fluminense.
 
-### 5.2. Interface do Usuário
+### 5.3. Interface do Usuário
 
 *   **Barra Lateral de Filtros:** Renderiza múltiplos filtros interativos (`multiselect`, `slider`) que permitem ao usuário refinar o conjunto de dados exibido.
 *   **KPIs Principais:** Exibe métricas chave, como "Total de Colaboradores" e "Idade Média", que são recalculadas dinamicamente com base nos filtros aplicados.
@@ -111,7 +122,7 @@ O script de deploy foi projetado para ser **idempotente**, ou seja, pode ser exe
 4.  **Construção da Imagem:** Gera uma **tag única** para a imagem Docker (baseada no timestamp) e constrói a imagem usando `docker build --no-cache`. Isso garante que o Kubernetes sempre reconheça que há uma nova versão.
 5.  **Publicação da Imagem:** Envia a nova imagem para o Docker Hub.
 6.  **Gerenciamento de Segredos:** Cria ou atualiza um `Secret` no Kubernetes com o conteúdo do `config.yaml` local.
-7.  **Aplicação dos Manifestos:** Usa `sed` para substituir o placeholder da imagem no `deployment.yaml` pela nova tag única e aplica todas as configurações (`Deployment`, `Service`, `Ingress`, `ClusterIssuer`) no cluster.
+7.  **Aplicação dos Manifestos:** Usa `sed` para substituir o placeholder da imagem no `deployment.yaml` pela nova tag única e aplica todas as configurações (`Deployment`, `Service`, `Ingress`, `ClusterIssuer`) no cluster. A variável de ambiente `DEPLOY_TIMESTAMP` também é injetada no contêiner neste passo, garantindo que a data e hora do deploy sejam exibidas na aplicação.
 8.  **Feedback ao Usuário:** Informa o IP do Load Balancer para que o DNS possa ser configurado.
 
 ---
